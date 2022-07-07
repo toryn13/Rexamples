@@ -230,6 +230,11 @@ adjust_pvalue(method = "bonferroni") %>%
 add_significance("p.adj")
 ```
 
+```{r}
+pha
+t.test(Conc~group,data=pha)
+```
+
 #Annotating plots
 ```{r}
 bar<-p3+annotate("segment", x = 1.2, xend = 2.3, y = 45,yend=45,
