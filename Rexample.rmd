@@ -1,0 +1,317 @@
+---
+title: "Untitled"
+output: html_document
+date: '2022-07-06'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Free data science book https://r4ds.had.co.nz/
+
+# Fetch the files
+```{r}
+download.file("https://raw.githubusercontent.com/toryn13//Rexamples/main/cat.jpg", "cat.jpg")
+download.file("https://raw.githubusercontent.com/toryn13//Rexamples/main/IL6.xlsx", "IL6.xlsx")
+download.file("https://raw.githubusercontent.com/toryn13//Rexamples/main/IL6plate.xls", "IL6plate.xls")
+download.file("https://raw.githubusercontent.com/toryn13//Rexamples/main/p53.jpeg", "p53.jepg")
+```
+
+# Here are the packages we need 
+```{r}
+install.packages("cowplot")
+install.packages("rstatix")
+install.packages("magick")
+install.packages("tidyverse")
+```
+
+
+# Load the packages
+```{r}
+library(tidyverse)
+library(cowplot)
+library(magick)
+library(readxl)
+library(rstatix)
+```
+
+
+<- assignment
+
+
+%>% pipe
+
+log2(25)
+
+25%>%log2()
+
+#Importing data
+
+We're using read_excel, if you have a tsv, csv or text. Use the readr package
+
+Excel sheets or regions of cells can be imported.
+
+R has many data structures. These include
+
+- vector
+- list
+- matrix
+- data frame
+- factors
+
+
+```{r}
+elisa_data<-read_excel("IL6plate.xls", skip=1,n_max = 9)
+```
+
+```{r}
+standards<-read_excel("IL6plate.xls", range = "A14:D22")
+colnames(standards)<-c("cell", "Conc", "rep1", "rep2")
+```
+
+5 common data types.
+
+- character
+- numeric (real or decimal)
+- integer
+- logical
+- complex
+
+
+#Wide vs long format
+tidy data
+```{r}
+standardsL<-pivot_longer(standards, starts_with("rep"), names_to = "replicate", values_to = "Abs")
+```
+
+
+
+
+#GGLOT2, building plots in layers
+```{r}
+
+standardsL%>%ggplot(aes(Conc,Abs))
+
+
+standardsL%>%ggplot(aes(Conc,Abs))+geom_point()
+
+
+standardsL%>%ggplot(aes(Conc,Abs))+geom_point()+geom_line()
+
+
+standardsL%>%ggplot(aes(Conc,Abs, group=replicate))+geom_point(colour="blue")+geom_line(colour="red")
+
+
+standardsL%>%ggplot(aes(Conc,Abs, group=replicate))+geom_point(colour="blue")+geom_line(colour="red")+facet_grid(.~replicate)
+
+
+standardsL%>%ggplot(aes(Conc,Abs, color=replicate))+geom_point()+geom_line()+facet_grid(.~replicate)
+
+
+curve<-standardsL%>%ggplot(aes(Conc,Abs))+geom_point()+geom_smooth(method="lm")+theme_cowplot(font_size=20, line_size = 1)+xlab(c("IL6 pg/mL"))
+curve
+```
+
+#Modifying values and creating new variables
+```{r}
+IL6<-read_excel("IL6.xlsx")
+IL6<-IL6%>%mutate(Treat2 = case_when(Treat=="Control"~"C", Treat=="PHA"~"P"))
+IL6$Conc<-(IL6$Conc)/1000
+```
+#Factors
+```{r}
+IL6$Treat2<-as.numeric(IL6$Treat2)
+IL6$Treat2<-factor(IL6$Treat2)
+IL6$Day<-factor(IL6$Day)
+```
+#boxplots
+```{r}
+IL6%>%ggplot(aes(Treat2, Conc,fill=Treat))+geom_boxplot()+scale_fill_manual(values=c('blue', 'lightblue'))+theme_bw()
+
+
+IL6%>%ggplot(aes(Treat2, Conc,fill=Treat))+geom_boxplot()+scale_fill_manual(values=c('blue', 'lightblue'))+theme_cowplot(12)
+
+
+IL6%>%ggplot(aes(Treat, Conc,fill=Treat))+geom_boxplot()+geom_jitter()+scale_fill_manual(values=c('blue', 'lightblue'))+theme_cowplot(font_size=20)
+
+```
+
+
+
+```{r}
+boxplot<-IL6%>%ggplot(aes(Treat, Conc,fill=Treat))+geom_boxplot()+geom_jitter(size=3)+
+scale_fill_manual(values=c('blue', 'lightblue'))+
+theme_cowplot(font_size=20, line_size=1)+theme(legend.position='none')+
+xlab(NULL)+ylab("IL6 ng/mL")+
+scale_y_continuous(limits = c(0, 50), expand = c(0, 0))
+boxplot
+```
+
+#Summary data
+```{r}
+sumIl6<-IL6%>%group_by(Treat,Day)%>%summarise(meanIL6=mean(Conc), sdIL6=sd(Conc))
+sumIl6
+```
+
+```{r}
+sumIl6$Day<-factor(sumIl6$Day)
+```
+#Bar plot
+```{r}
+#sumIl6%>%ggplot(aes(Day, meanIL6, fill=Treat))+geom_bar()
+sumIl6%>%ggplot(aes(Day, meanIL6, fill=Treat))+geom_bar(stat="identity")
+sumIl6%>%ggplot(aes(Day, meanIL6, fill=Treat))+geom_bar(stat="identity",position = position_dodge())
+```
+
+#Bar plot with error bars
+```{r}
+sumIl6%>%ggplot(aes(Day, meanIL6, fill=Treat))+geom_bar(stat="identity", position = position_dodge())+
+geom_errorbar(aes(ymin = meanIL6-sdIL6, ymax = meanIL6+sdIL6), width=.1)+
+scale_y_continuous(limits = c(0, 50), expand = c(0, 0))
+````
+
+
+```{r}
+sumIl6%>%ggplot(aes(Day, meanIL6, fill=Treat))+geom_bar(stat="identity", position = position_dodge())+
+geom_errorbar(aes(ymin = meanIL6-sdIL6, ymax = meanIL6+sdIL6),position=position_dodge(.9), width=0.8)+
+scale_y_continuous(limits = c(0, 50), expand = c(0, 0))
+```
+
+```{r}
+p2<-sumIl6%>%ggplot(aes(Day, meanIL6, fill=Treat))+geom_bar(stat="identity", position = position_dodge(),colour="black")+
+geom_errorbar(aes(ymin = meanIL6-sdIL6, ymax = meanIL6+sdIL6),position=position_dodge(.9), width=0.6)+
+scale_y_continuous(limits = c(0, 50), expand = c(0, 0))+
+scale_fill_manual(values=c('#66b3ff','#cce6ff'))+theme_cowplot(font_size = 20)+
+ylab("mean IL6 ng/mL")
+p2
+```
+
+#add the orginal data points
+```{r}
+p3<-p2+geom_dotplot(data=IL6, aes(Day, Conc, fill=Treat),binaxis = "y",stackdir = "center", binpositions="all", position="dodge" )
+p3
+```
+
+
+#Many other plot types
+```{r}
+heat_map <- IL6%>%ggplot(aes(x = Day,y = Treat, fill = scale(Conc))) + geom_tile()+
+scale_fill_gradient2(low = "blue", mid="white", high = "red")+coord_flip()+theme_minimal_grid()
+heat_map
+````
+
+
+
+# Statistics
+```{r}
+IL6$group<-factor(paste0(IL6$Treat,"_",IL6$Day))
+str(IL6)
+```
+
+```{r}
+IL6%>%t_test(Conc~Treat)
+```
+
+#Using filter
+```{r}
+IL6%>%filter(group=="Control_1")
+IL6%>%filter(group!="Control_1")
+IL6%>%filter(group %in% c("PHA_1", "PHA_3"))
+pha<-IL6%>%filter(group %in% c("PHA_1", "PHA_3"))
+```
+
+pha
+
+```{r}
+IL6 %>%
+t_test(data =., Conc ~ group) %>%
+adjust_pvalue(method = "bonferroni") %>%
+add_significance("p.adj")
+```
+
+#Annotating plots
+```{r}
+bar<-p3+annotate("segment", x = 1.2, xend = 2.3, y = 45,yend=45,
+  colour = "black")+annotate("text",x = 1.8, y = 46, label="***",size=10)
+bar
+```
+
+# Images 
+```{r}
+cat<-image_read("cat.jpg")
+#format width height 
+#JPEG     389    428
+#crop image Crop image to a by b at position c,d
+crop_cat<-image_crop(cat, "200x200+100+100")
+
+#scale to width
+small_cat<-image_scale(cat, "200")
+small_crop_cat<-image_scale(crop_cat, "100")
+
+
+image_write(small_cat, path = "small_cat.png", format = "png")
+image_write(crop_cat, path = "crop_cat.png", format = "png")
+image_write(small_crop_cat, path = "small_crop_cat.png", format = "png")
+```
+
+# Example with western blot
+```{r}
+a<-image_read("p53.jepg")
+print(a)
+a<-image_convert(a, "png")
+a<-image_crop(a, "150x250+220+350")
+```
+
+```{r}
+a_text<-image_annotate(a, "1      2", size = 35, gravity = "North", color = "black")
+a_text<-image_annotate(a_text, "Crop from p53 blot", size = 12, gravity = "south", color = "black")
+
+image_write(a_text, path = "crop.png", format = "png")
+```
+
+```{r}
+blot<-ggdraw() +
+draw_image("crop.png")
+```
+
+# Adding images to GGPLOT2
+```{r}
+C1=seq(1:10)
+C2=seq(1:10)
+frame<-data.frame(C1,C2)
+```
+
+frame
+
+```{r}
+graph<-frame%>%ggplot(aes(C1, C2))+geom_point(color="white")+theme_nothing()+annotate("segment", x = 0, xend = 0.9, y =  5.5,yend=5.5,
+  colour = "black", arrow=arrow())+annotate("segment", x = 0, xend = 0.9, y =  7.5,yend=7.5,
+  colour = "black", arrow=arrow())+annotate("text",x = 9, y = 5.5, label="p53",size=10)
+```
+
+graph
+
+```{r}
+
+img<-a_text%>%image_draw()
+````
+
+```{r}
+blot2<-ggdraw()+draw_plot(graph)+draw_image(img)
+blot2
+```
+
+```{r}
+plot_grid(curve,bar, labels = "AUTO")
+ggsave("example.pdf")
+
+
+plot_grid(blot2,boxplot, labels = "AUTO", scale = c(0.7, 1))
+ggsave("example2.pdf")
+```
+
+
+
+
+
