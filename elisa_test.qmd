@@ -1,0 +1,164 @@
+---
+title: "Untitled"
+format: pdf
+editor: visual
+---
+
+```{r}
+install.packages("tidyverse")
+```
+
+
+# Loading required libraries
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+# Downloading the data
+
+```{r}
+download.file("https://raw.githubusercontent.com/toryn13//Rexamples/main/IL6.xlsx", "IL6.xlsx")
+download.file("https://raw.githubusercontent.com/toryn13//Rexamples/main/IL6plate.xls", "IL6plate.xls")
+```
+
+# Reading and manipulating data
+
+```{r}
+elisa_data <- read_excel("IL6plate.xls", skip = 1, n_max = 9)
+il6data <- read_excel("IL6plate.xls", range = "D2:E10")
+colnames(il6data) <- c("Control", "PHA")
+standards <- read_excel("IL6plate.xls", range = "A14:D22")
+colnames(standards) <- c("cell", "Conc", "rep1", "rep2")
+standardsL <- pivot_longer(standards, starts_with("rep"), names_to = "replicate", values_to = "Abs")
+```
+
+# Plotting the standard curve
+
+```{r}
+curve <- standardsL %>% ggplot(aes(Conc, Abs)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  theme_cowplot(font_size = 20, line_size = 1) + 
+  xlab("IL6 pg/mL")
+curve
+```
+
+# Calculating mean Abs values for standards
+
+```{r}
+mean_standards <- standardsL %>% group_by(Conc) %>% summarise(meanAbs = mean(Abs))
+calc <- lm(meanAbs ~ Conc, data = mean_standards)
+```
+
+# Mutating IL6 data for concentration calculation
+
+```{r}
+il6data <- il6data %>% mutate(Concon = (Control - 0.1693065) / 0.0050953, PHAconc = (PHA - 0.1693065) / 0.0050953)
+```
+
+# Reading the IL6 treatment data and adjusting columns
+
+```{r}
+IL6 <- read_excel("IL6.xlsx")
+IL6 <- IL6 %>% mutate(Treat2 = case_when(Treat == "Control" ~ "1", Treat == "PHA" ~ "2"))
+IL6$Conc <- (IL6$Conc) / 1000
+IL6$Treat2 <- as.numeric(IL6$Treat2)
+IL6$Treat2 <- factor(IL6$Treat2)
+IL6$Day <- factor(IL6$Day)
+```
+
+# Summarizing the IL6 data
+
+```{r}
+sumIl6 <- IL6 %>% group_by(Treat, Day) %>% summarise(meanIL6 = mean(Conc), sdIL6 = sd(Conc))
+sumIl6$Day <- factor(sumIl6$Day)
+```
+
+# Plotting the results
+
+```{r}
+p2 <- sumIl6 %>% ggplot(aes(Day, meanIL6, fill = Treat)) + 
+  geom_bar(stat = "identity", position = position_dodge(), colour = "black") + 
+  geom_errorbar(aes(ymin = meanIL6 - sdIL6, ymax = meanIL6 + sdIL6), position = position_dodge(.9), width = 0.6) + 
+  scale_y_continuous(limits = c(0, 50), expand = c(0, 0)) + 
+  scale_fill_manual(values = c('#66b3ff', '#cce6ff')) + 
+  theme_cowplot(font_size = 20) + 
+  ylab("mean IL6 ng/mL")
+p2
+```
+
+# T-tests and filtering
+
+```{r}
+IL6$group <- factor(paste0(IL6$Treat, "_", IL6$Day))
+t.test(Conc ~ Treat, data = IL6)
+pha <- IL6 %>% filter(group %in% c("PHA_1", "PHA_3"))
+t.test(Conc ~ group, data = pha)
+```
+
+# ANOVA and Tukey's post hoc test
+
+library(rstatix)
+
+```{r}
+IL6 %>% 
+  t_test(data = ., Conc ~ group) %>% 
+  adjust_pvalue(method = "bonferroni") %>% 
+  add_significance("p.adj")
+
+# One-way ANOVA with post hoc test
+library(broom)
+IL6.aov <- aov(Conc ~ group, data = IL6)
+tidy(IL6.aov)
+pht <- data.frame(tidy(TukeyHSD(IL6.aov, which = "group")))
+write.csv(pht, "pht.csv")
+```
+
+```{r}
+# Two-way ANOVA
+IL6.aov2 <- aov(Conc ~ Day + Treat, data = IL6)
+tidy(IL6.aov2)
+IL6.aov2 <- aov(Conc ~ Day * Treat, data = IL6)
+tidy(IL6.aov2)
+```
+
+# Linear models
+
+```{r}
+aLM <- lm(Conc ~ group, data = IL6)
+tidy(aLM)
+a2LM <- lm(Conc ~ Day + Treat, data = IL6)
+tidy(a2LM)
+```
+
+# Plotting with GGPLOT2
+
+```{r}
+sumIl6 %>% ggplot(aes(Day, meanIL6, fill = Treat)) + geom_bar(stat = "identity")
+sumIl6 %>% ggplot(aes(Day, meanIL6, fill = Treat)) + geom_bar(stat = "identity", position = position_dodge())
+```
+
+# Error bars
+
+```{r}
+sumIl6 %>% ggplot(aes(Day, meanIL6, fill = Treat)) + 
+  geom_bar(stat = "identity", position = position_dodge()) + 
+  geom_errorbar(aes(ymin = meanIL6 - sdIL6, ymax = meanIL6 + sdIL6), width = .1) + 
+  scale_y_continuous(limits = c(0, 50), expand = c(0, 0))
+
+sumIl6 %>% ggplot(aes(Day, meanIL6, fill = Treat)) + 
+  geom_bar(stat = "identity", position = position_dodge()) + 
+  geom_errorbar(aes(ymin = meanIL6 - sdIL6, ymax = meanIL6 + sdIL6), position = position_dodge(.9), width = 0.8) + 
+  scale_y_continuous(limits = c(0, 50), expand = c(0, 0))
+
+p2 <- sumIl6 %>% ggplot(aes(Day, meanIL6, fill = Treat)) + 
+  geom_bar(stat = "identity", position = position_dodge(), colour = "black") + 
+  geom_errorbar(aes(ymin = meanIL6 - sdIL6, ymax = meanIL6 + sdIL6), position = position_dodge(.9), width = 0.6) + 
+  scale_y_continuous(limits = c(0, 50), expand = c(0, 0)) + 
+  scale_fill_manual(values = c('#66b3ff', '#cce6ff')) + 
+  theme_bw() + 
+  ylab("mean IL6 ng/mL")
+p2
+```
